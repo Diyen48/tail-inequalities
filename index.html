@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tail Inequalities — Interactive Probability Visualization</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+
+<body>
+  <!-- Dynamic background overlay -->
+  <div class="grid-overlay"></div>
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="navbar-content">
+      <h1 class="logo">∑ Tail Inequalities</h1>
+      <nav class="nav-tabs">
+        <button data-section="markov" class="nav-btn active">Markov</button>
+        <button data-section="chebyshev" class="nav-btn">Chebyshev</button>
+        <button data-section="chernoff" class="nav-btn">Chernoff</button>
+      </nav>
+      <div class="header-controls">
+        <button id="toggle-theme" class="control-btn" title="Toggle theme">🌙</button>
+        <button id="toggle-3d" class="control-btn" title="Toggle 3D view">3D</button>
+        <button id="toggle-help" class="control-btn" title="Keyboard shortcuts (h)">?</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="content-area">
+
+      <!-- THEORY OVERVIEW -->
+      <section class="theory-overview">
+        <div class="section-label">📚 Theory Overview</div>
+        <div class="theory-grid">
+          <div class="definition-box">
+            <h3>Definition</h3>
+            <p id="theory-definition"></p>
+          </div>
+          <div class="formula-box">
+            <h3>Core Formula</h3>
+            <div id="theory-formula"></div>
+          </div>
+          <div class="intuition-box">
+            <h3>Intuition</h3>
+            <p id="theory-intuition"></p>
+          </div>
+          <div class="bounds-info">
+            <h3>Tightness &amp; Conditions</h3>
+            <div id="theory-bounds"></div>
+          </div>
+        </div>
+        <div class="proof-box">
+          <h3>Proof</h3>
+          <button class="expand-btn" onclick="openProofModal(); return false;" type="button">📖 Step-by-Step Proof</button>
+        </div>
+      </section>
+
+      <!-- 2D VISUALIZATION -->
+      <section class="viz-section">
+        <div class="section-label">📊 Interactive Visualization</div>
+        <div class="viz-header">
+          <h3 id="viz-title">Markov's Inequality</h3>
+        </div>
+        <div class="viz-controls">
+          <div class="viz-sliders">
+            <label>Mean E[X]:&nbsp; <input type="range" id="mean" min="0.5" max="5" value="2" step="0.1" class="slider"></label>
+            <label>Threshold a:&nbsp; <input type="range" id="threshold" min="1" max="10" value="5" class="slider"></label>
+          </div>
+          <div class="viz-buttons">
+            <button id="play" class="btn-primary">▶ Animate</button>
+            <button id="step" class="btn-primary">→ Step</button>
+            <button id="reset" class="btn-secondary">↺ Reset</button>
+            <button id="download-chart" class="btn-secondary">💾 Export SVG</button>
+          </div>
+        </div>
+        <div class="viz-container">
+          <div class="viz-left">
+            <h4>Probability Distribution</h4>
+            <svg id="chart" class="chart-container" width="560" height="300"></svg>
+          </div>
+          <div class="viz-right">
+            <h4>Bound vs Actual Tail</h4>
+            <svg id="output-chart" class="chart-container" width="400" height="300"></svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- QUICK STATS -->
+      <section class="stats-quick">
+        <div class="section-label">📈 Live Statistics</div>
+        <div class="stats-row" id="stats-row">
+          <div class="stat-box-small"><label>Mean E[X]</label><span id="stat-mean" class="stat-value-small">—</span></div>
+          <div class="stat-box-small"><label>Threshold a</label><span id="stat-threshold" class="stat-value-small">—</span></div>
+          <div class="stat-box-small"><label>Inequality Bound</label><span id="stat-bound" class="stat-value-small">—</span></div>
+          <div class="stat-box-small"><label>True Tail Prob.</label><span id="stat-actual" class="stat-value-small">—</span></div>
+          <div class="stat-box-small"><label>Bound Tightness</label><span id="stat-tightness" class="stat-value-small">—</span></div>
+        </div>
+      </section>
+
+      <!-- COMPARISON SECTION -->
+      <section class="compare-current">
+        <div class="section-label">🔄 Compare All Three Inequalities</div>
+
+        <!-- Side-by-side chart for all three -->
+        <div id="comparison-chart" class="comparison-chart" style="margin-bottom:1.25rem;"></div>
+
+        <!-- Quick evaluate buttons -->
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+          <span style="font-family:var(--font-mono); font-size:0.78rem; color:var(--text-muted);">Compare current with:</span>
+          <button class="compare-btn" onclick="selectComparison('markov')" id="cmp-markov">Markov</button>
+          <button class="compare-btn" onclick="selectComparison('chebyshev')" id="cmp-chebyshev">Chebyshev</button>
+          <button class="compare-btn" onclick="selectComparison('chernoff')" id="cmp-chernoff">Chernoff</button>
+          <div id="selected-compare" class="selected-compare" style="display:none;"></div>
+          <button id="evaluate-btn" class="btn-primary" onclick="evaluateComparison()">📊 Evaluate</button>
+        </div>
+
+        <div id="comparison-result" class="comparison-result" style="display:none;">
+          <h4>Comparison Results</h4>
+          <div id="result-content"></div>
+        </div>
+
+        <!-- ═══ CUSTOM COMPARISON PANEL ═══ -->
+        <div class="custom-compare-panel">
+          <h4>⚗️ Custom Parameter Comparison — Enter Your Own Values</h4>
+          <p style="font-family:var(--font-mono); font-size:0.78rem; color:var(--text-muted); margin-bottom:1rem;">
+            Compute all three inequality bounds simultaneously for any mean, variance, and threshold you choose.
+          </p>
+          <div class="custom-input-grid">
+            <div class="custom-input-group">
+              <label>Mean μ (E[X])</label>
+              <input type="number" id="custom-mean" value="3" min="0.1" max="100" step="0.5">
+            </div>
+            <div class="custom-input-group">
+              <label>Variance σ²</label>
+              <input type="number" id="custom-variance" value="4" min="0.1" max="1000" step="0.5">
+            </div>
+            <div class="custom-input-group">
+              <label>Threshold a</label>
+              <input type="number" id="custom-threshold" value="9" min="0.1" max="1000" step="0.5">
+            </div>
+          </div>
+          <button class="btn-primary" onclick="runCustomComparison()" style="margin-bottom:1rem;">⚡ Compute All Bounds</button>
+          <div id="custom-result-grid" class="custom-result-grid" style="display:none;"></div>
+          <div id="custom-interpretation" style="display:none; margin-top:1rem; padding:0.9rem 1.1rem; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); font-family:var(--font-mono); font-size:0.82rem; color:var(--text-secondary); line-height:1.8;"></div>
+        </div>
+      </section>
+
+      <!-- DETAILED ANALYSIS -->
+      <section class="theory-overview">
+        <div class="section-label">📝 Detailed Analysis</div>
+        <div class="theory-grid">
+          <div class="formula-box">
+            <h3>Current Computation</h3>
+            <div id="formula"></div>
+            <button id="copy-formula" class="btn-icon" style="margin-top:0.8rem;">📋 Copy LaTeX</button>
+          </div>
+          <div class="definition-box">
+            <h3>In Plain English</h3>
+            <div id="description"></div>
+          </div>
+          <div class="intuition-box">
+            <h3>Key Insights</h3>
+            <div id="insights"></div>
+          </div>
+          <div class="bounds-info">
+            <h3>Real-World Applications</h3>
+            <div id="applications"></div>
+          </div>
+        </div>
+        <div class="definition-box" style="margin-top:1rem;">
+          <h3>Code Example</h3>
+          <pre style="margin:0; overflow-x:auto;"><code id="code-example"></code></pre>
+        </div>
+        <div style="margin-top:1rem;">
+          <div class="bounds-info">
+            <h3>📚 Academic References</h3>
+            <ul id="references" style="list-style:none; padding:0; margin:0;"></ul>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /content-area -->
+
+    <!-- PROOF MODAL -->
+    <div id="proof-modal" class="modal" onclick="closeProofModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2 id="proof-modal-title">Proof</h2>
+          <button class="modal-close" onclick="closeProofModal(event); return false;" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="modal-proof-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3D MODAL -->
+    <div id="viz-3d-modal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:1200px; width:95vw; height:90vh; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 style="margin:0; color:var(--primary); font-family:var(--font-display); font-size:1.1rem; font-weight:700;">3D Surface Visualization</h3>
+            <p id="viz-3d-description" style="margin:0.3rem 0 0; font-size:0.82rem; color:var(--text-secondary); font-family:var(--font-mono);"></p>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <button id="viz-3d-zoom-in" class="control-btn">+</button>
+            <button id="viz-3d-zoom-out" class="control-btn">−</button>
+            <button id="viz-3d-toggle-rot" class="control-btn">⟳</button>
+            <button id="viz-3d-close" class="control-btn">✕</button>
+          </div>
+        </div>
+        <div id="viz-3d-container" style="flex:1; min-height:0; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle);"></div>
+        <div style="padding:0.85rem 1rem; background:var(--primary-glow); border-radius:var(--radius-md); border:1px solid var(--primary-border);">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div>
+              <label style="display:block; margin-bottom:0.4rem; font-family:var(--font-mono); font-size:0.78rem; color:var(--text-secondary);">
+                Mean: <span id="viz-3d-mean-value" style="color:var(--primary); font-weight:700;">2.0</span>
+              </label>
+              <input type="range" id="viz-3d-mean" min="0.5" max="5" value="2" step="0.1" class="slider" style="width:100%;">
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:0.4rem; font-family:var(--font-mono); font-size:0.78rem; color:var(--text-secondary);">
+                Threshold: <span id="viz-3d-threshold-value" style="color:var(--primary); font-weight:700;">5.0</span>
+              </label>
+              <input type="range" id="viz-3d-threshold" min="1" max="10" value="5" step="0.1" class="slider" style="width:100%;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="help-modal" class="modal" onclick="closeHelpModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2>Keyboard Shortcuts</h2>
+          <button class="modal-close" onclick="closeHelpModal(event); return false;" type="button">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+            <div>
+              <h4 style="color:var(--primary); margin-bottom:1rem; font-family:var(--font-mono); font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase;">Navigation</h4>
+              <div style="font-size:0.88rem; line-height:2.4; font-family:var(--font-mono); color:var(--text-secondary);">
+                <p><kbd>1</kbd> — Markov's Inequality</p>
+                <p><kbd>2</kbd> — Chebyshev's Inequality</p>
+                <p><kbd>3</kbd> — Chernoff Bound</p>
+                <p><kbd>Esc</kbd> — Close modal</p>
+              </div>
+            </div>
+            <div>
+              <h4 style="color:var(--primary); margin-bottom:1rem; font-family:var(--font-mono); font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase;">Quick Actions</h4>
+              <div style="font-size:0.88rem; line-height:2.4; font-family:var(--font-mono); color:var(--text-secondary);">
+                <p><kbd>Ctrl</kbd>+<kbd>K</kbd> — Copy formula LaTeX</p>
+                <p><kbd>Ctrl</kbd>+<kbd>S</kbd> — Export chart SVG</p>
+                <p><kbd>Ctrl</kbd>+<kbd>P</kbd> — Open proof</p>
+                <p><kbd>H</kbd> — Toggle this panel</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <p>Interactive Visualization of Probability Tail Inequalities — Markov · Chebyshev · Chernoff</p>
+    <p style="margin-top:0.25rem;">Powered by Three.js · D3.js · KaTeX</p>
+  </footer>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
